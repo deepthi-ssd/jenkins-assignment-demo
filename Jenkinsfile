@@ -1,9 +1,13 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'node:18-alpine' // Node.js Docker image
+            args '-u root:root'    // Run as root to avoid permission issues
+        }
+    }
 
     environment {
-        // Change EMAIL_RECIPIENT to raimund's email or your own
-        EMAIL_RECIPIENT = 'raimund@example.com'
+        EMAIL_RECIPIENT = 'raimund@rittnauer.at'
     }
 
     stages {
@@ -37,29 +41,39 @@ pipeline {
             }
         }
 
-        stage('Publish HTML Reports') {
+        stage('Publish HTML Report') {
             steps {
-                publishHTML(target: [
-                    reportName: 'App Report',
-                    reportDir: 'dist',
-                    reportFiles: 'index.html',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true
-                ])
+                script {
+                    if (fileExists('dist/index.html')) {
+                        publishHTML(target: [
+                            reportName: 'App Report',
+                            reportDir: 'dist',
+                            reportFiles: 'index.html',
+                            keepAll: true,
+                            alwaysLinkToLastBuild: true
+                        ])
+                    } else {
+                        echo "dist/index.html not found, skipping HTML publish"
+                    }
+                }
             }
         }
     }
 
     post {
         success {
-            mail to: "${EMAIL_RECIPIENT}",
-                 subject: "Jenkins Build Successful: ${currentBuild.fullDisplayName}",
-                 body: "Good news! The build succeeded.\nCheck Jenkins console output here: ${env.BUILD_URL}"
+            emailext(
+                to: "${EMAIL_RECIPIENT}",
+                subject: "Jenkins Build Successful: ${currentBuild.fullDisplayName}",
+                body: "Good news! The build succeeded.\nCheck console output: ${env.BUILD_URL}"
+            )
         }
         failure {
-            mail to: "${EMAIL_RECIPIENT}",
-                 subject: "Jenkins Build Failed: ${currentBuild.fullDisplayName}",
-                 body: "Oops! The build failed.\nCheck Jenkins console output here: ${env.BUILD_URL}"
+            emailext(
+                to: "${EMAIL_RECIPIENT}",
+                subject: "Jenkins Build Failed: ${currentBuild.fullDisplayName}",
+                body: "Oops! The build failed.\nCheck console output: ${env.BUILD_URL}"
+            )
         }
     }
 }
